@@ -60,7 +60,7 @@ class BookSearchView(APIView):
 # มากที่สุด
 class MostRentBooksView(APIView):
     def get(self, request):
-        books = Book.objects.order_by('rent_count')[:10]
+        books = Book.objects.order_by('-rent_count')[:10]
         serializer = BookSerializer(books, many=True)
         return Response(serializer.data)
 
