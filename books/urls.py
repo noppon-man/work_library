@@ -8,4 +8,4 @@ urlpatterns = [
     path('books/search/', BookSearchView.as_view(), name='book-search'),
     path('books/<int:pk>/rent/', RentBookView.as_view(), name='rent-book'),
     path('books/<int:pk>/return/', ReturnBookView.as_view(), name='return-book'),
-    path('books/most-rant/', MostRentBooksView.as_view(), name='most-rent-books'),]
+    path('books/most-rent/', MostRentBooksView.as_view(), name='most-rent-books'),]
