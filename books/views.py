@@ -1,51 +1,88 @@
-from rest_framework import viewsets
-from rest_framework.decorators import action
+from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import status
+from django.shortcuts import get_object_or_404
 from .models import Book
 from .serializers import BookSerializer
 
-class BookViewSet(viewsets.ModelViewSet):
-    queryset = Book.objects.all()
-    serializer_class = BookSerializer
 
-########## ค้นหาหนังสือ ##########
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        title = self.request.query_params.get('title', None)
-        author = self.request.query_params.get('author', None)
-        category = self.request.query_params.get('category', None)
+# เพิ่ม/แก้ไข/ลบ/ดูรายละเอียดหนังสือ
+class BookListCreateView(APIView):
+    def get(self, request):
+        books = Book.objects.all()
+        serializer = BookSerializer(books, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = BookSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class BookDetailView(APIView):
+    def get(self, request, pk):
+        book = get_object_or_404(Book, pk=pk)
+        serializer = BookSerializer(book)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        book = get_object_or_404(Book, pk=pk)
+        serializer = BookSerializer(book, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        book = get_object_or_404(Book, pk=pk)
+        book.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+# ค้นหาหนังสือ
+class BookSearchView(APIView):
+    def get(self, request):
+        queryset = Book.objects.all()
+        title = request.query_params.get('title')
+        author = request.query_params.get('author')
+        category = request.query_params.get('category')
+
         if title:
             queryset = queryset.filter(title__icontains=title)
         if author:
             queryset = queryset.filter(author__icontains=author)
         if category:
             queryset = queryset.filter(category__icontains=category)
-        return queryset
+        
+        serializer = BookSerializer(queryset, many=True)
+        return Response(serializer.data)
 
-########## ยืมหนังสือ ##########
-    @action(detail=True, methods=['post'])
-    def rent(self, request, pk=None):
-        book = self.get_object()
+# มากที่สุด
+class MostRentBooksView(APIView):
+    def get(self, request):
+        books = Book.objects.order_by('rent_count')[:10]
+        serializer = BookSerializer(books, many=True)
+        return Response(serializer.data)
+
+# ยืม-คืน
+class RentBookView(APIView):
+    def post(self, request, pk):
+        book = get_object_or_404(Book, pk=pk)
         if not book.is_rent:
             book.is_rent = True
             book.rent_count += 1
             book.save()
-            return Response({ 'Book rent successfully.'})
-        return Response({ 'Book is already rent.'},)
+            return Response({'status': 'book rent'})
+        else:
+            return Response({'status': 'book already rent'}, status=status.HTTP_400_BAD_REQUEST)
 
-########## คืนหนังสือ ##########
-    @action(detail=True, methods=['post'])
-    def return_book(self, request, pk=None):
-        book = self.get_object()
+
+class ReturnBookView(APIView):
+    def post(self, request, pk):
+        book = get_object_or_404(Book, pk=pk)
         if book.is_rent:
             book.is_rent = False
             book.save()
-            return Response({ 'Book returned successfully.'})
-        return Response({ 'Book was not rent.'},)
-
-########## หนังสือที่ถูกยืมมากที่สุด ##########
-    @action(detail=False, methods=['get'])
-    def most_rent(self, request):
-        most_rent_books = Book.objects.order_by('-rent_count')[:10]
-        serializer = self.get_serializer(most_rent_books, many=True)
-        return Response(serializer.data)
+            return Response({'status': 'book returned'})
+        else:
+            return Response({'status': 'book was not rent'}, status=status.HTTP_400_BAD_REQUEST)
